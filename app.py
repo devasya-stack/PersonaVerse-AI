@@ -40,6 +40,7 @@ personality = st.selectbox(
         "📖 Story Writer"
     ]
 )
+
 response_length = st.selectbox(
     "Response Length",
     [
@@ -55,37 +56,44 @@ client = genai.Client(
     api_key=os.getenv("GEMINI_API_KEY")
 )
 
-if "history" not in st.session_state:
-    st.session_state.history = []
+# Session State
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-user_message = st.text_input("Say something:")
-
-col1, col2 = st.columns(2)
-
-with col1:
-    send = st.button("🚀 SEND")
-
-with col2:
-    clear = st.button("🗑 CLEAR CHAT")
-
-if clear:
-    st.session_state.history = []
+# Clear Chat
+if st.button("🗑 Clear Chat"):
+    st.session_state.messages = []
     st.rerun()
 
-if send:
+# Display Chat History
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
-    if user_message:
+# Chat Input
+if user_message := st.chat_input("Say something..."):
 
-        persona = personality
+    # Save User Message
+    st.session_state.messages.append(
+        {
+            "role": "user",
+            "content": user_message
+        }
+    )
 
-        conversation = ""
+    with st.chat_message("user"):
+        st.markdown(user_message)
 
-        for chat in st.session_state.history:
-            conversation += f"User: {chat['user']}\n"
-            conversation += f"AI: {chat['ai']}\n"
+    conversation = ""
 
-        ai_instruction = f"""
-You are {persona}.
+    for message in st.session_state.messages:
+        if message["role"] == "user":
+            conversation += f"User: {message['content']}\n"
+        else:
+            conversation += f"AI: {message['content']}\n"
+
+    ai_instruction = f"""
+You are {personality}.
 
 Your job is to completely behave like this character.
 Never break character.
@@ -100,47 +108,38 @@ Rules:
 Previous Conversation:
 
 {conversation}
-
-User:
-{user_message}
 """
 
-        with st.spinner("Connecting to the Multiverse..."):
+    with st.spinner("Connecting to the Multiverse..."):
 
-            response = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=ai_instruction
-            )
-
-        answer = response.text
-
-        st.session_state.history.append(
-            {
-                "user": user_message,
-                "ai": answer
-            }
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=ai_instruction
         )
 
-        st.success("Message received!")
+    answer = response.text
 
-    else:
-        st.warning("Please type a message first.")
+    with st.chat_message("assistant"):
+        st.markdown(answer)
 
-if st.session_state.history:
+    # Save AI Response
+    st.session_state.messages.append(
+        {
+            "role": "assistant",
+            "content": answer
+        }
+    )
 
-    st.subheader("💬")
-
-    for chat in st.session_state.history:
-
-        st.markdown(f"**🧑 You:** {chat['user']}")
-        st.markdown(f"**🤖 {personality}:** {chat['ai']}")
-        st.divider()
+# Download Chat
+if st.session_state.messages:
 
     chat_text = ""
 
-    for chat in st.session_state.history:
-        chat_text += f"User: {chat['user']}\n"
-        chat_text += f"AI: {chat['ai']}\n\n"
+    for message in st.session_state.messages:
+        if message["role"] == "user":
+            chat_text += f"User: {message['content']}\n"
+        else:
+            chat_text += f"AI: {message['content']}\n"
 
     st.download_button(
         "📥 Download Chat",
